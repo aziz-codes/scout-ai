@@ -66,11 +66,8 @@ const COUNTRY_CODES: Record<string, string> = {
 // flagcdn.com only supports specific widths
 const SUPPORTED_WIDTHS = [20, 40, 80, 160, 320] as const;
 
-/**
- * Get the nearest supported flagcdn.com width for a given requested size.
- */
 function nearestWidth(size: number): number {
-  let best = SUPPORTED_WIDTHS[0];
+  let best: number = SUPPORTED_WIDTHS[0];
   for (const w of SUPPORTED_WIDTHS) {
     if (w >= size) return w;
     best = w;

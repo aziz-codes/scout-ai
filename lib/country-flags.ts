@@ -63,17 +63,33 @@ const COUNTRY_CODES: Record<string, string> = {
   "Korea Republic": "kr",
 };
 
+// flagcdn.com only supports specific widths
+const SUPPORTED_WIDTHS = [20, 40, 80, 160, 320] as const;
+
+/**
+ * Get the nearest supported flagcdn.com width for a given requested size.
+ */
+function nearestWidth(size: number): number {
+  let best = SUPPORTED_WIDTHS[0];
+  for (const w of SUPPORTED_WIDTHS) {
+    if (w >= size) return w;
+    best = w;
+  }
+  return best;
+}
+
 /**
  * Get a flag image URL from flagcdn.com for a given country name.
- * Returns a 64-width PNG flag.
+ * Automatically maps to the nearest supported width (20, 40, 80, 160, 320).
  */
-export function getFlagUrl(countryName: string, size: number = 64): string {
+export function getFlagUrl(countryName: string, size: number = 80): string {
   const code = COUNTRY_CODES[countryName];
+  const w = nearestWidth(size);
   if (!code) {
-    // Fallback: try lowercasing and taking first two chars (won't always work)
-    return `https://flagcdn.com/${size}x${Math.round(size * 0.75)}/${countryName.slice(0, 2).toLowerCase()}.png`;
+    // Fallback: use the country name's first two chars as code
+    return `https://flagcdn.com/w${w}/${countryName.slice(0, 2).toLowerCase()}.png`;
   }
-  return `https://flagcdn.com/w${size}/${code}.png`;
+  return `https://flagcdn.com/w${w}/${code}.png`;
 }
 
 /**

@@ -125,7 +125,20 @@ export interface AnalysisResponse {
   content: string;
   error?: string;
 }
+// ─── Alerts ──────────────────────────────────────────────────────────────────────
+export interface AlertTeam {
+  name: string;
+  flag: string;
+  code: string;
+}
 
+export interface TeamAlert {
+  id: string;
+  email: string;
+  teams: AlertTeam[];
+  createdAt: string;
+  active: boolean;
+}
 // ─── Navigation ──────────────────────────────────────────────────────────────
 export interface NavItem {
   id: string;

@@ -73,6 +73,88 @@ export async function fetchGames(): Promise<APIGame[]> {
 }
 
 /**
+ * Team name → emoji flag and 3-letter code mapping
+ */
+const TEAM_INFO: Record<string, { flag: string; code: string }> = {
+  Argentina: { flag: "🇦🇷", code: "ARG" },
+  Brazil: { flag: "🇧🇷", code: "BRA" },
+  Germany: { flag: "🇩🇪", code: "GER" },
+  Mexico: { flag: "🇲🇽", code: "MEX" },
+  Switzerland: { flag: "🇨🇭", code: "SUI" },
+  Nigeria: { flag: "🇳🇬", code: "NGA" },
+  Morocco: { flag: "🇲🇦", code: "MAR" },
+  "Saudi Arabia": { flag: "🇸🇦", code: "KSA" },
+  Serbia: { flag: "🇷🇸", code: "SRB" },
+  Cameroon: { flag: "🇨🇲", code: "CMR" },
+  Japan: { flag: "🇯🇵", code: "JPN" },
+  Poland: { flag: "🇵🇱", code: "POL" },
+  France: { flag: "🇫🇷", code: "FRA" },
+  Spain: { flag: "🇪🇸", code: "ESP" },
+  Belgium: { flag: "🇧🇪", code: "BEL" },
+  Netherlands: { flag: "🇳🇱", code: "NED" },
+  England: { flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", code: "ENG" },
+  Italy: { flag: "🇮🇹", code: "ITA" },
+  Portugal: { flag: "🇵🇹", code: "POR" },
+  Croatia: { flag: "🇭🇷", code: "CRO" },
+  Denmark: { flag: "🇩🇰", code: "DEN" },
+  Austria: { flag: "🇦🇹", code: "AUT" },
+  "Czech Republic": { flag: "🇨🇿", code: "CZE" },
+  Uruguay: { flag: "🇺🇾", code: "URU" },
+  Colombia: { flag: "🇨🇴", code: "COL" },
+  Chile: { flag: "🇨🇱", code: "CHI" },
+  Peru: { flag: "🇵🇪", code: "PER" },
+  Ecuador: { flag: "🇪🇨", code: "ECU" },
+  Paraguay: { flag: "🇵🇾", code: "PAR" },
+  Canada: { flag: "🇨🇦", code: "CAN" },
+  "United States": { flag: "🇺🇸", code: "USA" },
+  "Costa Rica": { flag: "🇨🇷", code: "CRC" },
+  Panama: { flag: "🇵🇦", code: "PAN" },
+  Jamaica: { flag: "🇯🇲", code: "JAM" },
+  Honduras: { flag: "🇭🇳", code: "HON" },
+  Iran: { flag: "🇮🇷", code: "IRN" },
+  Qatar: { flag: "🇶🇦", code: "QAT" },
+  Australia: { flag: "🇦🇺", code: "AUS" },
+  "South Korea": { flag: "🇰🇷", code: "KOR" },
+  "New Zealand": { flag: "🇳🇿", code: "NZL" },
+};
+
+/**
+ * Extract unique teams from games and return them as AlertTeam objects
+ */
+export function extractTeamsFromGames(games: APIGame[]): Array<{
+  name: string;
+  flag: string;
+  code: string;
+}> {
+  const teamSet = new Set<string>();
+
+  games.forEach((game) => {
+    if (game.home_team_name_en) teamSet.add(game.home_team_name_en);
+    if (game.away_team_name_en) teamSet.add(game.away_team_name_en);
+  });
+
+  return Array.from(teamSet)
+    .map((teamName) => {
+      const info = TEAM_INFO[teamName];
+      if (!info) {
+        // Fallback for unknown teams
+        return null;
+      }
+      return {
+        name: teamName,
+        flag: info.flag,
+        code: info.code,
+      };
+    })
+    .filter((team) => team !== null)
+    .sort((a, b) => a.name.localeCompare(b.name)) as Array<{
+    name: string;
+    flag: string;
+    code: string;
+  }>;
+}
+
+/**
  * Find today's matches, or the nearest upcoming match day if no games today.
  * Returns the games and the date label.
  */
@@ -131,7 +213,11 @@ export function findRelevantGames(games: APIGame[]): {
   return { games: [], dateLabel: "No matches scheduled", isToday: false };
 }
 
-function formatDateLabel(dateStr: string, isToday: boolean, isPast: boolean = false): string {
+function formatDateLabel(
+  dateStr: string,
+  isToday: boolean,
+  isPast: boolean = false,
+): string {
   const [year, month, day] = dateStr.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   const monthName = date.toLocaleDateString("en-US", { month: "long" });
@@ -144,7 +230,11 @@ function formatDateLabel(dateStr: string, isToday: boolean, isPast: boolean = fa
 
   // Check if it's tomorrow
   const now = new Date();
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const tomorrow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+  );
   if (
     date.getFullYear() === tomorrow.getFullYear() &&
     date.getMonth() === tomorrow.getMonth() &&
@@ -158,8 +248,14 @@ function formatDateLabel(dateStr: string, isToday: boolean, isPast: boolean = fa
   }
 
   // Calculate days until
-  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.ceil((date.getTime() - nowMidnight.getTime()) / (1000 * 60 * 60 * 24));
+  const nowMidnight = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const diffDays = Math.ceil(
+    (date.getTime() - nowMidnight.getTime()) / (1000 * 60 * 60 * 24),
+  );
 
   if (diffDays <= 7) {
     const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
@@ -180,7 +276,9 @@ export function getMatchTime(localDate: string): string {
 /**
  * Determine match status from API data.
  */
-export function getMatchStatus(game: APIGame): "live" | "finished" | "upcoming" {
+export function getMatchStatus(
+  game: APIGame,
+): "live" | "finished" | "upcoming" {
   if (game.finished === "TRUE") return "finished";
   if (game.time_elapsed !== "notstarted") return "live";
   return "upcoming";

@@ -1,10 +1,4 @@
-import { daysUntil } from "@/lib/utils";
-
 export function AppHeader() {
-  const daysLeft = daysUntil(
-    process.env.NEXT_PUBLIC_TOURNAMENT_END ?? "2026-07-19"
-  );
-
   return (
     <header className="px-5 pt-8 pb-0">
       {/* Logo row */}
@@ -36,7 +30,7 @@ export function AppHeader() {
         <div className="flex gap-5 shrink-0">
           <Stat value="104" label="Matches" />
           <Stat value="48"  label="Teams" />
-          <Stat value={String(daysLeft)} label="Days Left" highlight />
+          <Stat value="16"  label="Cities" highlight />
         </div>
       </div>
     </header>

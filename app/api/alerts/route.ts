@@ -1,66 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Resend } from "resend";
+import { createOrUpdateUser } from "@/lib/db";
 import type { AlertTeam } from "@/types";
 
-// In-memory storage (in production, use a proper database)
-const alerts: Array<{
-  id: string;
-  email: string;
-  teams: AlertTeam[];
-  createdAt: string;
-  active: boolean;
-}> = [];
-
-/**
- * Send email notification to user
- * This is a placeholder implementation. In production, integrate with:
- * - SendGrid
- * - Resend (resend.com)
- * - AWS SES
- * - Nodemailer
- */
-async function sendEmailNotification(
-  email: string,
-  teams: AlertTeam[],
-): Promise<void> {
-  // Placeholder: Replace with actual email service
-  console.log(
-    `[EMAIL] Sending confirmation to ${email} for teams: ${teams.map((t) => t.name).join(", ")}`,
-  );
-
-  // Example with Resend (uncomment and set RESEND_API_KEY in .env.local):
-  // const { Resend } = require("resend");
-  // const resend = new Resend(process.env.RESEND_API_KEY);
-  //
-  // await resend.emails.send({
-  //   from: "alerts@scoutai.com",
-  //   to: email,
-  //   subject: "Match Alert Created - ScoutAI",
-  //   html: `<h1>Alert Created!</h1><p>You'll receive notifications for ${teams.map((t) => t.name).join(" and ")} matches.</p>`,
-  // });
-
-  // Example with SendGrid (uncomment and set SENDGRID_API_KEY in .env.local):
-  // const sgMail = require("@sendgrid/mail");
-  // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  //
-  // await sgMail.send({
-  //   to: email,
-  //   from: "alerts@scoutai.com",
-  //   subject: "Match Alert Created - ScoutAI",
-  //   html: `<h1>Alert Created!</h1><p>You'll receive notifications for ${teams.map((t) => t.name).join(" and ")} matches.</p>`,
-  // });
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * POST /api/alerts
- * Create a new team alert for the user
+ * Create or update a user alert subscription with their selected teams
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-
     const { teams, email } = body;
 
-    // Validation
+    // ─── Validation ───────────────────────────────────────────────────────
     if (!teams || !Array.isArray(teams) || teams.length !== 2) {
       return NextResponse.json(
         { message: "Please select exactly 2 teams" },
@@ -85,32 +39,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create alert
-    const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newAlert = {
-      id: alertId,
-      email,
-      teams,
-      createdAt: new Date().toISOString(),
-      active: true,
-    };
+    // ─── Save to Supabase ─────────────────────────────────────────────────
+    const user = await createOrUpdateUser(email, teams);
 
-    // Store alert (in production, save to database)
-    alerts.push(newAlert);
+    if (!user) {
+      throw new Error("Failed to create/update user in database");
+    }
 
-    // Send confirmation email (with placeholder/actual implementation)
+    // ─── Send Confirmation Email ──────────────────────────────────────────
     try {
-      await sendEmailNotification(email, teams);
+      await resend.emails.send({
+        from: "alerts@scoutai.com",
+        to: email,
+        subject: "✓ Match Alerts Created - ScoutAI",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #10b981;">Match Alerts Active</h2>
+            <p>You'll receive email notifications when these teams have upcoming matches:</p>
+            <div style="margin: 20px 0;">
+              ${teams.map((team: AlertTeam) => `<p style="font-size: 16px; margin: 8px 0;">🔔 ${team.flag} <strong>${team.name}</strong></p>`).join("")}
+            </div>
+            <p style="color: #666; font-size: 14px;">We'll send you notifications:</p>
+            <ul style="color: #666; font-size: 14px;">
+              <li>Before the match starts</li>
+              <li>When the match goes live</li>
+              <li>When the match ends</li>
+            </ul>
+            <p style="color: #666; font-size: 12px; margin-top: 30px;">ScoutAI © 2026</p>
+          </div>
+        `,
+      });
     } catch (emailError) {
       console.error("Failed to send confirmation email:", emailError);
-      // Don't fail the request if email fails, but log it
+      // Don't fail the request if email fails, as user data is already saved
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: "Alert created successfully",
-        alertId,
+        message: "Alert created! Check your email for confirmation.",
+        userId: user.id,
       },
       { status: 201 },
     );
@@ -118,7 +86,10 @@ export async function POST(request: NextRequest) {
     console.error("Alert creation error:", error);
 
     return NextResponse.json(
-      { message: "Failed to create alert. Please try again." },
+      {
+        message:
+          error instanceof Error ? error.message : "Failed to create alert",
+      },
       { status: 500 },
     );
   }
@@ -126,11 +97,46 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/alerts
- * List all alerts (optional, for user dashboard)
+ * List all user alerts (for admin/debug purposes)
+ * Note: In production, add proper authentication
  */
-export async function GET() {
-  return NextResponse.json({
-    alerts,
-    count: alerts.length,
-  });
+export async function GET(request: NextRequest) {
+  try {
+    // Optional: Add authentication check here
+    const authHeader = request.headers.get("authorization");
+    if (process.env.NODE_ENV === "production" && !authHeader) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get("email");
+
+    if (email) {
+      // Return a single user's alerts
+      const { getUserByEmail } = await import("@/lib/db");
+      const user = await getUserByEmail(email);
+
+      if (!user) {
+        return NextResponse.json(
+          { message: "User not found" },
+          { status: 404 },
+        );
+      }
+
+      return NextResponse.json({
+        user,
+      });
+    }
+
+    return NextResponse.json(
+      { message: "Email parameter required" },
+      { status: 400 },
+    );
+  } catch (error) {
+    console.error("Error fetching alerts:", error);
+    return NextResponse.json(
+      { message: "Failed to fetch alerts" },
+      { status: 500 },
+    );
+  }
 }

@@ -111,7 +111,7 @@ export function NotificationAlertsBuilder({
       <SectionHeader>Match Alerts</SectionHeader>
 
       {/* Info Section */}
-      <Card className="bg-blue-500/10 border border-blue-400/20">
+      <Card className="bg-blue-500/10 border border-blue-400/20 p-3">
         <div className="flex items-start gap-3">
           <Bell className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-blue-300">
